@@ -1,0 +1,15 @@
+{
+  "title": "BlackJack",
+  "author": "Osaamu Tezuka",
+  "status": "Ended",
+  "genres": [
+    "Psychological",
+    "Shounen",
+    "Sci-fi"
+  ],
+  "summary": " Black Jack là câu chuyện về nghề y xoay quanh nhân vật chính, một bác sĩ được mệnh danh là “con ma phẫu thuật”. Nhiều bệnh nhân mắc phải bệnh lạ hay hiểm nghèo, trong thế “thầy chạy bác sĩ chê” thường tìm đến vị bác sĩ này để mong được bàn tay của anh cứu giúp. Quái lạ là anh lại chẳng có giấy phép hành nghề. Anh chỉ có tài năng, danh tiếng trong giới y khoa và một vết sẹo dài trên má.",
+  "featured": true,
+  "hot": false,
+  "createdAt": "2026-09-01",
+  "updatedAt": "2026-09-19"
+}
