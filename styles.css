@@ -261,3 +261,31 @@ body.modal-open { overflow:hidden; }
   .genre-dialog { border-radius:18px; }
   .genre-modal-list { grid-template-columns:repeat(2,minmax(0,1fr)); padding:14px; }
 }
+
+/* Search controls */
+.search-clear { width:30px; height:30px; flex:0 0 30px; display:grid; place-items:center; border-radius:50%; background:transparent; color:var(--muted); }
+.search-clear:hover { background:var(--surface-2); color:var(--text); }
+.search-clear[hidden] { display:none; }
+
+/* Mobile manga detail: cover first, then title/status, author, genres, summary */
+.detail-title-row { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.detail-title-row h1 { margin:9px 0; }
+.detail-title-row .detail-status { flex:0 0 auto; }
+
+@media (max-width:760px) {
+  .detail-card { display:flex; flex-direction:column; align-items:stretch; gap:18px; padding:18px; }
+  .detail-cover { width:min(190px,55vw); aspect-ratio:3/4; align-self:center; border-radius:14px; }
+  .detail-info { padding:0; }
+  .detail-title-row { align-items:center; gap:7px 10px; }
+  .detail-title-row h1 { flex:1 1 170px; margin:0; font-size:30px; letter-spacing:-1px; }
+  .detail-title-row .detail-status { font-size:11px; white-space:nowrap; }
+  .detail-author { margin:8px 0 0; font-size:13px; }
+  .tag-list { margin:14px 0 18px; }
+  .summary { font-size:13px; line-height:1.7; max-width:none; }
+  .detail-read { width:100%; }
+}
+@media (max-width:430px) {
+  .detail-cover { width:min(175px,58vw); }
+  .detail-title-row h1 { font-size:25px; }
+  .detail-title-row .detail-status { font-size:10px; }
+}

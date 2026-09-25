@@ -1,5 +1,6 @@
 (() => {
   const data = window.MANGA_DATA || [];
+  let featuredTimer = null;
   const genres = [...new Set(data.flatMap(m => m.genres || []))].sort((a,b)=>a.localeCompare(b));
   const app = document.getElementById('app');
   const esc = s => String(s ?? '').replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -31,18 +32,19 @@
   const search = q => { q=q.trim().toLowerCase(); return q ? data.filter(m => `${m.title} ${m.author} ${(m.genres||[]).join(' ')}`.toLowerCase().includes(q)) : []; };
   const latest = m => (m.chapters||[]).slice().sort((a,b)=>b.chapterNumber-a.chapterNumber)[0];
 
-  function header() {
+  function header(searchQuery='') {
     const dark = document.documentElement.dataset.theme === 'dark';
     return `<header class="site-header"><div class="header-inner">
       <a href="#/" class="brand">Manga <span>AG</span></a>
-      <div class="search-wrap"><form class="search-box" id="searchForm">${icon('search',19)}<input id="searchInput" placeholder="Tìm kiếm truyện..." autocomplete="off"><button type="submit" class="search-submit">${icon('search',17)}</button></form><div id="suggestions" class="suggestions" hidden></div></div>
+      <div class="search-wrap"><form class="search-box" id="searchForm">${icon('search',19)}<input id="searchInput" value="${esc(searchQuery)}" placeholder="Tìm kiếm truyện..." autocomplete="off"><button type="button" class="search-clear" id="searchClear" aria-label="Hủy tìm kiếm" ${searchQuery?'':'hidden'}>${icon('x',16)}</button><button type="submit" class="search-submit">${icon('search',17)}</button></form><div id="suggestions" class="suggestions" hidden></div></div>
       <button class="theme-btn" id="themeBtn">${dark?icon('sun',17):icon('moon',17)} <span>${dark?'Sáng':'Tối'}</span></button>
     </div></header>`;
   }
   function card(m) { const l=latest(m); return `<a class="manga-card" href="#/manga/${encodeURIComponent(m.slug)}"><div class="cover-wrap"><img loading="lazy" src="${esc(m.cover)}" alt="Bìa ${esc(m.title)}"><span class="status-badge ${m.status}">${m.status==='ongoing'?'Đang cập nhật':'Hoàn thành'}</span></div><div class="card-body"><h3>${esc(m.title)}</h3><div class="card-meta"><span>Chap ${l?.chapterNumber ?? '-'}</span><span>${date(m.updatedAt)}</span></div></div></a>`; }
   function featured(items) {
     if(!items.length) return '';
-    let idx=0, timer;
+    if(featuredTimer) { clearInterval(featuredTimer); featuredTimer=null; }
+    let idx=0;
     const render = () => `<section class="featured-section"><div class="section-heading"><div><p class="eyebrow">Đề xuất cho bạn</p><h2>Truyện nổi bật</h2></div><div class="carousel-actions"><button class="icon-btn" id="prevFeat">${icon('left')}</button><button class="icon-btn" id="nextFeat">${icon('right')}</button></div></div><div class="featured-card" id="featuredCard"><div class="featured-track" id="featuredTrack">${slide(items[idx],'featured-slide-current')}</div></div><div class="carousel-dots">${items.map((m,i)=>`<button class="${i===idx?'active':''}" data-dot="${i}" aria-label="${esc(m.title)}">${icon('heart',15)}</button>`).join('')}</div></section>`;
     const slide=(m,cl)=>`<article class="featured-slide ${cl}"><img src="${esc(m.cover)}" alt="Bìa ${esc(m.title)}"><div class="featured-overlay"><span class="pill">FEATURED</span><h3>${esc(m.title)}</h3><p>${esc(m.summary)}</p><div class="featured-meta"><span>${esc(m.author)}</span><span>•</span><span>${m.status==='ongoing'?'Đang cập nhật':'Hoàn thành'}</span></div><a href="#/manga/${encodeURIComponent(m.slug)}" class="primary-btn">Đọc truyện →</a></div></article>`;
     setTimeout(()=>{
@@ -58,7 +60,7 @@
       document.getElementById('prevFeat').onclick=()=>change((idx-1+items.length)%items.length,-1);
       document.getElementById('nextFeat').onclick=()=>change((idx+1)%items.length,1);
       document.querySelectorAll('[data-dot]').forEach((b,i)=>b.onclick=()=>change(i,i>idx?1:-1));
-      timer=setInterval(()=>change((idx+1)%items.length,1),5500);
+      if(items.length>1) featuredTimer=setInterval(()=>change((idx+1)%items.length,1),5500);
     },0);
     return render();
   }
@@ -83,16 +85,72 @@
     }; draw();
   }
   function bindHeader(){
-    const form=document.getElementById('searchForm'), input=document.getElementById('searchInput'), sug=document.getElementById('suggestions');
-    if(!form)return;
-    input.oninput=()=>{const r=search(input.value).slice(0,4); sug.innerHTML=r.map(m=>`<a class="suggestion" href="#/manga/${encodeURIComponent(m.slug)}"><img src="${esc(m.cover)}"><span><strong>${esc(m.title)}</strong><small>${m.status==='ongoing'?'Đang cập nhật':'Hoàn thành'}</small></span></a>`).join(''); sug.hidden=!r.length;};
+    const form=document.getElementById('searchForm'), input=document.getElementById('searchInput'), sug=document.getElementById('suggestions'), clear=document.getElementById('searchClear');
+    if(!form || !input)return;
+    const updateSuggestions=()=>{
+      const value=input.value.trim();
+      if(clear) clear.hidden=!value;
+      const r=search(value).slice(0,4);
+      sug.innerHTML=r.map(m=>`<a class="suggestion" href="#/manga/${encodeURIComponent(m.slug)}"><img src="${esc(m.cover)}"><span><strong>${esc(m.title)}</strong><small>${m.status==='ongoing'?'Đang cập nhật':'Hoàn thành'}</small></span></a>`).join('');
+      sug.hidden=!value || !r.length;
+    };
+    input.oninput=updateSuggestions;
+    input.onfocus=()=>{ if(input.value.trim()) updateSuggestions(); };
     form.onsubmit=e=>{e.preventDefault(); const q=input.value.trim(); if(q)go('/search?q='+encodeURIComponent(q));};
-    document.getElementById('themeBtn').onclick=()=>{const dark=document.documentElement.dataset.theme==='dark'; document.documentElement.dataset.theme=dark?'light':'dark'; localStorage.setItem('manga-ag-theme',dark?'light':'dark'); render();};
-    document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap')){const s=document.getElementById('suggestions');if(s)s.hidden=true;}},{once:true});
+    if(clear) clear.onclick=()=>{ go('/'); };
+    const themeBtn=document.getElementById('themeBtn');
+    if(themeBtn) themeBtn.onclick=()=>{const dark=document.documentElement.dataset.theme==='dark'; document.documentElement.dataset.theme=dark?'light':'dark'; localStorage.setItem('manga-ag-theme',dark?'light':'dark'); render();};
+    document.onclick=e=>{if(!e.target.closest('.search-wrap')){if(sug)sug.hidden=true;}};
   }
-  function detail(slug){ const m=mangaBySlug(slug); if(!m){app.innerHTML=header()+`<main class="container empty-state"><h2>Không tìm thấy truyện</h2><a class="secondary-btn" href="#/">${icon('left',16)} Quay lại</a></main>`;bindHeader();return;} const latestC=latest(m); let desc=true; const draw=()=>{const ch=[...m.chapters].sort((a,b)=>desc?b.chapterNumber-a.chapterNumber:a.chapterNumber-b.chapterNumber); app.innerHTML=header()+`<main class="container page"><a href="#/" class="back-link">${icon('left',16)} Quay lại thư viện</a><section class="detail-card"><img class="detail-cover" src="${esc(m.cover)}" alt="Bìa ${esc(m.title)}"><div class="detail-info"><span class="detail-status ${m.status}">● ${m.status==='ongoing'?'Đang cập nhật':'Đã hoàn thành'}</span><h1>${esc(m.title)}</h1><p class="detail-author">Tác giả: <strong>${esc(m.author)}</strong></p><div class="tag-list">${m.genres.map(g=>`<span>${esc(g)}</span>`).join('')}</div><div class="summary"><h3>Summary</h3><p>${esc(m.summary)}</p></div>${latestC?`<a class="primary-btn detail-read" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(latestC.slug)}">${icon('book',18)} Đọc chapter mới nhất</a>`:''}</div></section><section class="chapters-section"><div class="section-heading compact"><div><p class="eyebrow">Danh sách</p><h2>Chapter</h2></div><button class="secondary-btn" id="sortCh">↕ ${desc?'Mới nhất trước':'Cũ nhất trước'}</button></div><div class="chapter-list">${ch.map(c=>`<a class="chapter-row" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(c.slug)}"><span class="chapter-icon">${icon('book',17)}</span><span><strong>Chapter ${String(c.chapterNumber).padStart(2,'0')}</strong>${c.title?`<small>${esc(c.title)}</small>`:''}</span><time>${date(c.createdAt)}</time></a>`).join('')}</div></section></main>`;bindHeader();document.getElementById('sortCh').onclick=()=>{desc=!desc;draw();};};draw(); }
-  function searchPage(q){ const r=search(q); app.innerHTML=header()+`<main class="container page"><div class="page-title"><p class="eyebrow">Tìm kiếm</p><h1>Kết quả cho “${esc(q)}”</h1><span>${r.length} truyện</span></div>${r.length?`<div class="manga-grid">${r.map(card).join('')}</div>`:`<div class="empty-state"><h3>Không tìm thấy truyện phù hợp.</h3><p>Thử từ khóa khác nhé.</p></div>`}</main>`;bindHeader();}
-  function reader(slug, chSlug){const m=mangaBySlug(slug);const c=m?.chapters.find(x=>x.slug===chSlug);if(!m||!c){app.innerHTML='<div class="reader-loading">Không tìm thấy chapter.</div>';return;} let mode=localStorage.getItem('manga-ag-reader-mode')||'vertical', page=0, menu=false; const idx=m.chapters.findIndex(x=>x.id===c.id), prev=idx>0?m.chapters[idx-1]:null,next=idx<m.chapters.length-1?m.chapters[idx+1]:null; const draw=()=>{const current=c.pages[page]; app.innerHTML=`<div class="reader-shell"><div class="reader-topbar"><button class="reader-brand" id="closeReader">Manga <span>AG</span></button><div class="reader-title">Chapter ${String(c.chapterNumber).padStart(2,'0')}${c.title?' — '+esc(c.title):''}</div><div class="reader-tools"><div class="mode-picker"><button class="${mode==='vertical'?'active':''}" data-mode="vertical">${icon('rows',17)}<span>Dọc</span></button><button class="${mode==='single'?'active':''}" data-mode="single">${icon('monitor',17)}<span>Một trang</span></button><button class="${mode==='book'?'active':''}" data-mode="book">${icon('book',17)}<span>Lật trang</span></button></div><button class="icon-btn reader-icon" id="openMenu">${icon('list')}</button></div></div><main class="reader-content mode-${mode}">${mode==='vertical'?c.pages.map(p=>`<img src="${esc(p.imageUrl)}" alt="Trang ${p.pageNumber}" loading="lazy">`).join():`<div class="single-reader"><button class="page-arrow left" id="pagePrev">${icon('left',28)}</button><img src="${esc(current.imageUrl)}" alt="Trang ${current.pageNumber}"><button class="page-arrow right" id="pageNext">${icon('right',28)}</button></div>`}</main>${mode!=='vertical'?`<div class="reader-counter">Page ${page+1} / ${c.pages.length}</div>`:''}<div class="reader-bottom">${prev?`<a href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(prev.slug)}">← Chapter trước</a>`:'<span></span>'}<button id="bottomMenu">${icon('list',16)} Danh sách chapter</button>${next?`<a href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(next.slug)}">Chapter sau →</a>`:'<span></span>'}</div>${next?`<div class="next-chapter-card"><div><small>Tiếp theo</small><h3>Chapter ${String(next.chapterNumber).padStart(2,'0')}</h3></div><a class="primary-btn" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(next.slug)}">Đọc tiếp →</a></div>`:''}${menu?drawer(m,c):''}</div>`; document.getElementById('closeReader').onclick=()=>go('/manga/'+encodeURIComponent(m.slug)); document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;localStorage.setItem('manga-ag-reader-mode',mode);page=0;draw();}); const pm=document.getElementById('pagePrev'),pn=document.getElementById('pageNext');if(pm)pm.onclick=()=>{page=Math.max(0,page-1);draw();};if(pn)pn.onclick=()=>{page=Math.min(c.pages.length-1,page+1);draw();};document.getElementById('openMenu').onclick=()=>{menu=true;draw();};document.getElementById('bottomMenu').onclick=()=>{menu=true;draw();};document.onkeydown=e=>{if(mode==='single'||mode==='book'){if(e.key==='ArrowLeft'){page=Math.max(0,page-1);draw();}if(e.key==='ArrowRight'){page=Math.min(c.pages.length-1,page+1);draw();}}if(e.key==='Escape'&&menu){menu=false;draw();}};}; const drawer=(m,c)=>`<div class="drawer-backdrop" id="drawerBackdrop"><aside class="chapter-drawer"><div class="drawer-head"><div><small>${esc(m.title)}</small><h3>Danh sách chapter</h3></div><button class="icon-btn" id="closeDrawer">${icon('x')}</button></div><div class="drawer-list">${[...m.chapters].sort((a,b)=>b.chapterNumber-a.chapterNumber).map(x=>`<a class="${x.id===c.id?'current':''}" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(x.slug)}"><strong>Chapter ${String(x.chapterNumber).padStart(2,'0')}</strong>${x.title?`<small>${esc(x.title)}</small>`:''}</a>`).join('')}</div></aside></div>`; draw(); setTimeout(()=>{const bd=document.getElementById('drawerBackdrop'),cl=document.getElementById('closeDrawer');if(bd)bd.onclick=e=>{if(e.target===bd){menu=false;draw();}};if(cl)cl.onclick=()=>{menu=false;draw();};},0); }
-  function render(){ const t=localStorage.getItem('manga-ag-theme')||'light';document.documentElement.dataset.theme=t;const r=route();if(r.parts[0]==='manga'&&r.parts[1])detail(decodeURIComponent(r.parts[1]));else if(r.parts[0]==='read'&&r.parts[1]&&r.parts[2])reader(decodeURIComponent(r.parts[1]),decodeURIComponent(r.parts[2]));else if(r.parts[0]==='search')searchPage(r.query.get('q')||'');else home(); window.scrollTo(0,0); }
+  function detail(slug){
+    const m=mangaBySlug(slug);
+    if(!m){app.innerHTML=header()+`<main class="container empty-state"><h2>Không tìm thấy truyện</h2><a class="secondary-btn" href="#/">${icon('left',16)} Quay lại</a></main>`;bindHeader();return;}
+    const firstC=[...m.chapters].sort((a,b)=>a.chapterNumber-b.chapterNumber)[0];
+    let desc=true;
+    const draw=()=>{
+      const ch=[...m.chapters].sort((a,b)=>desc?b.chapterNumber-a.chapterNumber:a.chapterNumber-b.chapterNumber);
+      app.innerHTML=header()+`<main class="container page"><a href="#/" class="back-link">${icon('left',16)} Quay lại thư viện</a><section class="detail-card"><img class="detail-cover" src="${esc(m.cover)}" alt="Bìa ${esc(m.title)}"><div class="detail-info"><div class="detail-title-row"><h1>${esc(m.title)}</h1><span class="detail-status ${m.status}">● ${m.status==='ongoing'?'Đang cập nhật':'Đã hoàn thành'}</span></div><p class="detail-author">Tác giả: <strong>${esc(m.author)}</strong></p><div class="tag-list">${m.genres.map(g=>`<span>${esc(g)}</span>`).join('')}</div><div class="summary"><h3>Summary</h3><p>${esc(m.summary)}</p></div>${firstC?`<a class="primary-btn detail-read" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(firstC.slug)}">${icon('book',18)} Đọc ngay</a>`:''}</div></section><section class="chapters-section"><div class="section-heading compact"><div><p class="eyebrow">Danh sách</p><h2>Chapter</h2></div><button class="secondary-btn" id="sortCh">↕ ${desc?'Mới nhất trước':'Cũ nhất trước'}</button></div><div class="chapter-list">${ch.map(c=>`<a class="chapter-row" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(c.slug)}"><span class="chapter-icon">${icon('book',17)}</span><span><strong>Chapter ${String(c.chapterNumber).padStart(2,'0')}</strong>${c.title?`<small>${esc(c.title)}</small>`:''}</span><time>${date(c.createdAt)}</time></a>`).join('')}</div></section></main>`;
+      bindHeader();
+      document.getElementById('sortCh').onclick=()=>{desc=!desc;draw();};
+    };
+    draw();
+  }
+  function searchPage(q){ const r=search(q); app.innerHTML=header(q)+`<main class="container page"><div class="page-title"><p class="eyebrow">Tìm kiếm</p><h1>Kết quả cho “${esc(q)}”</h1><span>${r.length} truyện</span></div>${r.length?`<div class="manga-grid">${r.map(card).join('')}</div>`:`<div class="empty-state"><h3>Không tìm thấy truyện phù hợp.</h3><p>Thử từ khóa khác nhé.</p></div>`}</main>`;bindHeader();}
+  function reader(slug, chSlug){
+    const m=mangaBySlug(slug);
+    const c=m?.chapters.find(x=>x.slug===chSlug);
+    if(!m||!c){app.innerHTML='<div class="reader-loading">Không tìm thấy chapter.</div>';return;}
+    let mode=localStorage.getItem('manga-ag-reader-mode')||'vertical';
+    if(mode==='book') mode='vertical';
+    let page=0, menu=false;
+    const idx=m.chapters.findIndex(x=>x.id===c.id), prev=idx>0?m.chapters[idx-1]:null,next=idx<m.chapters.length-1?m.chapters[idx+1]:null;
+    const drawer=(m,c)=>`<div class="drawer-backdrop" id="drawerBackdrop"><aside class="chapter-drawer"><div class="drawer-head"><div><small>${esc(m.title)}</small><h3>Danh sách chapter</h3></div><button class="icon-btn" id="closeDrawer" aria-label="Đóng">${icon('x')}</button></div><div class="drawer-list">${[...m.chapters].sort((a,b)=>b.chapterNumber-a.chapterNumber).map(x=>`<a class="${x.id===c.id?'current':''}" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(x.slug)}"><strong>Chapter ${String(x.chapterNumber).padStart(2,'0')}</strong>${x.title?`<small>${esc(x.title)}</small>`:''}</a>`).join('')}</div></aside></div>`;
+    const bindDrawer=()=>{
+      const bd=document.getElementById('drawerBackdrop'),cl=document.getElementById('closeDrawer');
+      if(cl) cl.onclick=()=>{menu=false;draw();};
+      if(bd) bd.onclick=e=>{if(e.target===bd){menu=false;draw();}};
+    };
+    const draw=()=>{
+      const current=c.pages[page];
+      app.innerHTML=`<div class="reader-shell"><div class="reader-topbar"><button class="reader-brand" id="closeReader">Manga <span>AG</span></button><div class="reader-title">Chapter ${String(c.chapterNumber).padStart(2,'0')}${c.title?' — '+esc(c.title):''}</div><div class="reader-tools"><div class="mode-picker"><button class="${mode==='vertical'?'active':''}" data-mode="vertical">${icon('rows',17)}<span>Dọc</span></button><button class="${mode==='single'?'active':''}" data-mode="single">${icon('monitor',17)}<span>Một trang</span></button></div><button class="icon-btn reader-icon" id="openMenu" aria-label="Danh sách chapter">${icon('list')}</button></div></div><main class="reader-content mode-${mode}">${mode==='vertical'?c.pages.map(p=>`<img src="${esc(p.imageUrl)}" alt="Trang ${p.pageNumber}" loading="lazy">`).join():`<div class="single-reader"><button class="page-arrow left" id="pagePrev">${icon('left',28)}</button><img src="${esc(current.imageUrl)}" alt="Trang ${current.pageNumber}"><button class="page-arrow right" id="pageNext">${icon('right',28)}</button></div>`}</main>${mode!=='vertical'?`<div class="reader-counter">Page ${page+1} / ${c.pages.length}</div>`:''}<div class="reader-bottom">${prev?`<a href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(prev.slug)}">← Chapter trước</a>`:'<span></span>'}<button id="bottomMenu">${icon('list',16)} Danh sách chapter</button>${next?`<a href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(next.slug)}">Chapter sau →</a>`:'<span></span>'}</div>${next?`<div class="next-chapter-card"><div><small>Tiếp theo</small><h3>Chapter ${String(next.chapterNumber).padStart(2,'0')}</h3></div><a class="primary-btn" href="#/read/${encodeURIComponent(m.slug)}/${encodeURIComponent(next.slug)}">Đọc tiếp →</a></div>`:''}${menu?drawer(m,c):''}</div>`;
+      document.getElementById('closeReader').onclick=()=>go('/manga/'+encodeURIComponent(m.slug));
+      document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.mode;localStorage.setItem('manga-ag-reader-mode',mode);page=0;draw();});
+      const pm=document.getElementById('pagePrev'),pn=document.getElementById('pageNext');
+      if(pm)pm.onclick=()=>{page=Math.max(0,page-1);draw();};
+      if(pn)pn.onclick=()=>{page=Math.min(c.pages.length-1,page+1);draw();};
+      document.getElementById('openMenu').onclick=()=>{menu=true;draw();};
+      document.getElementById('bottomMenu').onclick=()=>{menu=true;draw();};
+      document.onkeydown=e=>{
+        if(mode==='single'){
+          if(e.key==='ArrowLeft'){page=Math.max(0,page-1);draw();}
+          if(e.key==='ArrowRight'){page=Math.min(c.pages.length-1,page+1);draw();}
+        }
+        if(e.key==='Escape'&&menu){menu=false;draw();}
+      };
+      if(menu) bindDrawer();
+    };
+    draw();
+  }
+  function render(){ if(featuredTimer){clearInterval(featuredTimer);featuredTimer=null;} const t=localStorage.getItem('manga-ag-theme')||'light';document.documentElement.dataset.theme=t;const r=route();if(r.parts[0]==='manga'&&r.parts[1])detail(decodeURIComponent(r.parts[1]));else if(r.parts[0]==='read'&&r.parts[1]&&r.parts[2])reader(decodeURIComponent(r.parts[1]),decodeURIComponent(r.parts[2]));else if(r.parts[0]==='search')searchPage(r.query.get('q')||'');else home(); window.scrollTo(0,0); }
   window.addEventListener('hashchange',render); render();
 })();
